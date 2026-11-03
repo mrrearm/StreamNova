@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,6 +55,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -75,6 +77,7 @@ import com.example.ui.theme.NovaCyanBright
 import com.example.ui.theme.NovaTextPrimary
 import com.example.ui.theme.NovaTextSecondary
 import kotlinx.coroutines.delay
+import kotlin.math.abs
 
 /** Intervallo dell'auto-scorrimento, riavviato da zero a ogni interazione manuale. */
 private const val HERO_AUTO_SCROLL_DELAY_MS = 10_000L
@@ -209,6 +212,31 @@ fun HeroBanner(
           onScrollToIndex = scrollToPoster,
           onConfirm = { onDetailsClick(currentMedia) },
           onMoveDown = onHeroMoveDown
+        )
+      }
+      // Swipe orizzontale (touch): sinistra = poster successivo, destra = precedente.
+      // Il timer dell'auto-scroll riparte tramite scrollToPoster.
+      .pointerInput(safeItems) {
+        var totalDrag = 0f
+        detectHorizontalDragGestures(
+          onDragStart = { totalDrag = 0f },
+          onDragEnd = {
+            val count = safeItems.size
+            if (count > 1 && abs(totalDrag) > 80f) {
+              val target = if (totalDrag < 0f) {
+                (currentIndex + 1) % count
+              } else {
+                (currentIndex - 1 + count) % count
+              }
+              scrollToPoster(target)
+            }
+            totalDrag = 0f
+          },
+          onDragCancel = { totalDrag = 0f },
+          onHorizontalDrag = { change, dragAmount ->
+            change.consume()
+            totalDrag += dragAmount
+          }
         )
       }
       // Superficie cliccabile (mouse/air-mouse) e focalizzabile con il D-pad. `indication`
