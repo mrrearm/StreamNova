@@ -23,6 +23,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -92,6 +94,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -2907,7 +2910,10 @@ fun PlayerScreen(
           // -------------------------------------------------------------------
           // 2. BARRA DI SCORRIMENTO (Timeline)
           // -------------------------------------------------------------------
-          val progressFraction = if (totalDuration > 0) {
+          // Trascinamento con il dito sulla timeline: finche' e' attivo la barra mostra la
+          // posizione scelta e il seek vero parte al rilascio.
+          var touchSeekFraction by remember { mutableStateOf<Float?>(null) }
+          val progressFraction = touchSeekFraction ?: if (totalDuration > 0) {
             (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
           } else 0f
 
@@ -2955,7 +2961,49 @@ fun PlayerScreen(
               BoxWithConstraints(
                 modifier = Modifier
                   .fillMaxWidth()
-                  .padding(horizontal = 10.dp, vertical = 8.dp),
+                  // Touch: tap = salta al punto toccato, trascinamento = scorri e rilascia
+                  // per spostarsi. Area tattile piu' alta della barra (padding verticale).
+                  .pointerInput(exoPlayer) {
+                    val padPx = 10.dp.toPx()
+                    detectTapGestures(
+                      onTap = { offset ->
+                        val dur = exoPlayer.duration
+                        if (dur > 0L && dur != C.TIME_UNSET) {
+                          val target = (seekFractionForTouch(offset.x, size.width.toFloat(), padPx) * dur).toLong()
+                          exoPlayer.seekTo(target)
+                          currentPosition = target
+                          hideTimerTick++
+                        }
+                      }
+                    )
+                  }
+                  .pointerInput(exoPlayer) {
+                    val padPx = 10.dp.toPx()
+                    detectHorizontalDragGestures(
+                      onDragStart = { offset ->
+                        touchSeekFraction = seekFractionForTouch(offset.x, size.width.toFloat(), padPx)
+                        hideTimerTick++
+                      },
+                      onDragEnd = {
+                        val fraction = touchSeekFraction
+                        touchSeekFraction = null
+                        val dur = exoPlayer.duration
+                        if (fraction != null && dur > 0L && dur != C.TIME_UNSET) {
+                          val target = (fraction * dur).toLong()
+                          exoPlayer.seekTo(target)
+                          currentPosition = target
+                        }
+                        hideTimerTick++
+                      },
+                      onDragCancel = { touchSeekFraction = null },
+                      onHorizontalDrag = { change, _ ->
+                        change.consume()
+                        touchSeekFraction = seekFractionForTouch(change.position.x, size.width.toFloat(), padPx)
+                        hideTimerTick++
+                      }
+                    )
+                  }
+                  .padding(horizontal = 10.dp, vertical = 16.dp),
                 contentAlignment = Alignment.CenterStart
               ) {
                 val widthPx = maxWidth
@@ -4650,4 +4698,10 @@ private fun NextEpisodePromptCard(
       }
     }
   }
+}
+
+/** Frazione (0..1) della timeline corrispondente alla coordinata X del tocco. */
+private fun seekFractionForTouch(x: Float, widthPx: Float, padPx: Float): Float {
+  val usable = (widthPx - 2f * padPx).coerceAtLeast(1f)
+  return ((x - padPx) / usable).coerceIn(0f, 1f)
 }
