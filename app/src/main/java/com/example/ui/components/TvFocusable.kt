@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +55,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -103,6 +106,8 @@ fun TvFocusableBox(
   var longPressJob by remember { mutableStateOf<Job?>(null) }
   var longPressTriggered by remember { mutableStateOf(false) }
   var isKeyDownActive by remember { mutableStateOf(false) }
+  val currentOnClick by rememberUpdatedState(onClick)
+  val currentOnLongPress by rememberUpdatedState(onLongPress)
 
   val isConfirmKey = remember {
     { keyCode: Int ->
@@ -176,6 +181,13 @@ fun TvFocusableBox(
 
           else -> false
         }
+      }
+      // Supporto touch (telefono): tap = OK del telecomando, pressione lunga = long press.
+      .pointerInput(Unit) {
+        detectTapGestures(
+          onTap = { currentOnClick() },
+          onLongPress = { currentOnLongPress?.invoke() }
+        )
       }
       .focusable()
       .then(
