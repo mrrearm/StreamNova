@@ -1602,6 +1602,11 @@ fun CastMemberCard(
         }
       }
       .focusable()
+      // Touch: tap = OK del telecomando (apre la scheda della persona).
+      .clickable(
+        interactionSource = remember { MutableInteractionSource() },
+        indication = null
+      ) { onClick() }
       .padding(vertical = 4.dp),
     horizontalAlignment = Alignment.CenterHorizontally
   ) {
